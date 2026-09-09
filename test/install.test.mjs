@@ -1,0 +1,30 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, writeFile, readFile, rm, cp, stat } from 'node:fs/promises';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+test('installer handles spaces, preserves existing directories, and leaves secrets private', { skip: process.platform === 'win32' }, async t => {
+  const root = await mkdtemp(join(tmpdir(), 'hamro-installer-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const source = fileURLToPath(new URL('../', import.meta.url));
+  const fixture = join(root, 'fixture', 'sample-store-v1.0.0');
+  await mkdir(fixture, { recursive: true });
+  for (const file of ['src', 'public', 'scripts', 'package.json', '.env.example']) await cp(join(source, file), join(fixture, file), { recursive: true });
+  const archive = join(root, 'source.tar.gz');
+  execFileSync('tar', ['-czf', archive, '-C', join(root, 'fixture'), 'sample-store-v1.0.0']);
+  const bin = join(root, 'bin'); await mkdir(bin);
+  await writeFile(join(bin, 'curl'), '#!/bin/sh\nwhile [ "$#" -gt 0 ]; do\n if [ "$1" = "-o" ]; then cp "$TEST_ARCHIVE" "$2"; exit 0; fi\n shift\ndone\nexit 1\n', { mode: 0o755 });
+  const target = join(root, "my store's demo");
+  const run = () => spawnSync('sh', [join(source, 'install.sh'), '--dir', target], { encoding: 'utf8', env: { ...process.env, PATH: bin + ':' + process.env.PATH, TEST_ARCHIVE: archive } });
+  const result = run(); assert.equal(result.status, 0, result.stderr); assert.match(result.stdout, /npm start/);
+  assert.match(await readFile(join(target, '.env'), 'utf8'), /PAYMENT_MODE=demo/);
+  assert.equal((await stat(join(target, '.env'))).mode & 0o777, 0o600);
+  await writeFile(join(target, 'keep.txt'), 'preserved');
+  const again = run(); assert.equal(again.status, 1); assert.match(again.stderr, /already exists/);
+  assert.equal(await readFile(join(target, 'keep.txt'), 'utf8'), 'preserved');
+  const cdLine = result.stdout.split('\n').find(line => line.startsWith('  cd '));
+  assert.equal(spawnSync('sh', ['-c', cdLine], { encoding: 'utf8' }).status, 0, 'printed command must handle apostrophes');
+});

@@ -1,0 +1,11 @@
+Use case: product-mockup
+Asset type: fictional sample merchandise product photo for a T-shirt e-commerce store.
+Primary request: premium e-commerce studio photograph of a single ivory short-sleeve cotton T-shirt hanging naturally, front view.
+Scene/backdrop: cool very light gray seamless background.
+Subject: one ivory cotton T-shirt with a small lowercase red wordmark at the wearer's left chest.
+Style/medium: realistic, restrained, clean apparel product photography.
+Composition/framing: centered full garment with generous margins, square 1200x1200 or similar.
+Lighting/mood: soft directional studio lighting.
+Materials/textures: realistic cotton fabric, natural drape, seams and subtle folds.
+Text (verbatim): "hamro."
+Constraints: no person, no hanger visible, no extra objects or text.
