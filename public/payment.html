@@ -1,18 +1,47 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#ffffff"><title>Your payment — Hamro Goods</title><link rel="stylesheet" href="/style.css"><script type="module" src="/payment.js"></script></head>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#ffffff">
+<title>Your payment — Hamro Goods</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+<script type="module" src="/payment.js"></script>
+</head>
 <body>
-<div class="env-banner" id="env-banner">Checking environment…</div>
-<header class="site-header"><div class="header-inner"><a href="/" class="wordmark" aria-label="Hamro Goods, home">hamro<span>goods.</span></a><div class="header-actions"><a class="header-link" href="/">Back to the store</a></div></div></header>
+<div class="env-banner" id="env-banner">
+  <div class="banner-inner">
+    <span>Free shipping on orders over NPR 3,000</span>
+    <span class="banner-bullet">·</span>
+    <span>Easy returns within 7 days</span>
+  </div>
+</div>
+<header class="site-header">
+  <div class="header-inner">
+    <a href="/" class="wordmark" aria-label="Hamro Goods, home">hamro<span class="wordmark-highlight">goods.</span></a>
+    <div class="header-actions">
+      <a class="nav-link" href="/">Back to the store</a>
+    </div>
+  </div>
+</header>
 <main class="panel" id="panel" data-state="LOADING">
   <p class="status"><span class="status-dot"></span><span id="status-text">Checking</span></p>
   <h1 id="title">Checking your payment</h1>
   <p class="lede" id="description">Confirming this order with Hamro Pay.</p>
   <ul class="summary" id="lines" hidden></ul>
-  <div class="summary-total" id="total-row" hidden><span>Order total</span><strong class="amount" id="amount"></strong></div>
-  <div class="actions"><button class="secondary" id="check-again" hidden>Check again</button></div>
+  <div class="summary-total" id="total-row" hidden>
+    <span>Order total</span>
+    <strong class="amount" id="amount"></strong>
+  </div>
+  <div class="actions">
+    <button class="secondary" id="check-again" hidden>Check again</button>
+  </div>
   <p class="status-message" id="error" role="status" aria-live="polite"></p>
   <p class="fine" id="order-id"></p>
-  <a class="back" href="/">Back to the store</a>
+  <a class="back" href="/">← Back to the store</a>
 </main>
-</body></html>
+</body>
+</html>

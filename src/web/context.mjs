@@ -37,7 +37,7 @@ export function createContext({ req, res, config, store, security }) {
     'Referrer-Policy': 'no-referrer',
     'Cache-Control': 'no-store',
     // form-action must allow the gateway: the hand-off page POSTs a form to it.
-    'Content-Security-Policy': `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self' ${gatewayOrigin}`,
+    'Content-Security-Policy': `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self' ${gatewayOrigin}`,
     ...(setCookie ? { 'Set-Cookie': setCookie } : {}),
   };
 

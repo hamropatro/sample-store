@@ -43,7 +43,7 @@ export function createApp({ config, store, publicDir, fetcher = fetch }) {
       ctx = createContext({ req, res, config, store, security });
       const route = routes.find(([method, path]) => method === req.method && path === ctx.path);
       if (route) status = await route[2](ctx);
-      else if (req.method === 'GET' && await serveStatic(ctx)) status = 200;
+      else if ((req.method === 'GET' || req.method === 'HEAD') && await serveStatic(ctx)) status = 200;
       else throw notFound();
     } catch (error) {
       status = respondToError(res, ctx, error);
