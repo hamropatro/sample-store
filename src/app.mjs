@@ -1,14 +1,18 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { product, priceCart } from './catalog.mjs';
-import { createSession, getTransaction, matchesPayment, verifyWebhook } from './hamropay.mjs';
-
-const htmlEscape = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+import { startCheckout, getTransaction, matchesPayment, verifyWebhook } from './hamropay.mjs';
+import { createMockGateway, MOCK_PREFIX } from './mock-gateway.mjs';
+import { htmlEscape } from './html.mjs';
 const apiError = (status, message) => Object.assign(new Error(message), { status });
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml' };
 const states = new Set(['PENDING', 'PROCESSING', 'FAILED', 'NOT_INITIATED', 'COMPLETED']);
 
-export function createApp({ config, store, publicDir, fetcher = fetch }) {
+export function createApp({ config, store, publicDir, fetcher }) {
+  // Demo mode talks to a built-in gateway over the documented protocol instead of skipping
+  // it, so both modes exercise exactly the same checkout code.
+  const mock = config.mode === 'demo' ? createMockGateway(config) : null;
+  const send = fetcher || mock?.fetcher || fetch;
   const locks = new Map();
   const buckets = new Map();
   const csrfFor = owner => createHmac('sha256', store.secret).update(owner).digest('hex');
@@ -19,7 +23,7 @@ export function createApp({ config, store, publicDir, fetcher = fetch }) {
     if (!bucket || bucket.until < now) { bucket = { count: 0, until: now + 60000 }; buckets.set(owner, bucket); }
     if (++bucket.count > 30) throw apiError(429, 'Too many requests. Try again in a minute.');
   }
-  return async function handle(req, res) {
+  const handle = async function handle(req, res) {
     let cookieHeader;
     const header = req.headers.cookie || '';
     let owner = /(?:^|;\s*)sample_session=([A-Za-z0-9_-]{32})(?:;|$)/.exec(header)?.[1];
@@ -33,12 +37,17 @@ export function createApp({ config, store, publicDir, fetcher = fetch }) {
     const reply = (status, data, type = 'application/json; charset=utf-8') => { res.writeHead(status, { ...headers, 'Content-Type': type }); res.end(type.startsWith('application/json') ? JSON.stringify(data) : data); };
     const owned = id => { const order = store.get(id); if (!order || order.owner !== owner) throw apiError(404, 'Order not found in this browser.'); return order; };
     const publicOrder = order => ({ id: order.id, status: order.status, amount: order.amount, currency: 'NPR', lines: order.lines, mode: order.mode, createdAt: order.createdAt });
-    const parseBody = async () => {
-      if (!String(req.headers['content-type'] || '').startsWith('application/json')) throw apiError(415, 'Send JSON.');
+    const readBody = async type => {
+      if (!String(req.headers['content-type'] || '').startsWith(type)) throw apiError(415, `Send ${type}.`);
       let size = 0; const chunks = [];
       for await (const chunk of req) { size += chunk.length; if (size > 16384) throw apiError(413, 'Request is too large.'); chunks.push(chunk); }
-      try { const body = JSON.parse(Buffer.concat(chunks).toString('utf8')); if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(); return body; } catch { throw apiError(400, 'Send a JSON object.'); }
+      return Buffer.concat(chunks).toString('utf8');
     };
+    const parseBody = async () => {
+      const text = await readBody('application/json');
+      try { const body = JSON.parse(text); if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(); return body; } catch { throw apiError(400, 'Send a JSON object.'); }
+    };
+    const parseForm = async () => new URLSearchParams(await readBody('application/x-www-form-urlencoded'));
     const protect = () => {
       if (req.headers.origin !== config.origin) throw apiError(403, 'Open the store at its configured APP_URL and try again.');
       const token = Buffer.from(String(req.headers['x-csrf-token'] || ''));
@@ -74,55 +83,52 @@ export function createApp({ config, store, publicDir, fetcher = fetch }) {
         const existing = store.find(order => order.owner === owner && order.requestKey === key);
         if (existing) {
           if (JSON.stringify(existing.lines) !== JSON.stringify(cart.lines)) throw apiError(409, 'This checkout ID belongs to a different cart.');
-          if (existing.sessionReady) return reply(200, { orderId: existing.id, url: `${existing.mode === 'demo' ? '/demo/checkout' : '/checkout/redirect'}?id=${existing.id}` });
+          if (existing.sessionReady) return reply(200, { orderId: existing.id, url: `/checkout/redirect?id=${existing.id}` });
           throw apiError(409, 'A previous checkout attempt needs review. Start a new checkout attempt.');
         }
         const promise = (async () => {
           let order = { id: `HP${randomBytes(10).toString('hex')}`, owner, requestKey: key, ...cart, status: 'PENDING', mode: config.mode, createdAt: new Date().toISOString() };
           await store.save(order);
-          if (config.mode === 'sandbox') {
-            try { order.checkoutFields = await createSession(order, config, fetcher); }
-            catch (error) { await store.save({ ...order, status: 'SESSION_ERROR' }); throw apiError(502, error.message); }
-          }
+          try { order.checkoutFields = await startCheckout(order, config, send); }
+          catch (error) { await store.save({ ...order, status: 'SESSION_ERROR' }); throw apiError(502, error.message); }
           order.sessionReady = true;
           await store.save(order);
-          return { orderId: order.id, url: `${config.mode === 'demo' ? '/demo/checkout' : '/checkout/redirect'}?id=${order.id}` };
+          return { orderId: order.id, url: `/checkout/redirect?id=${order.id}` };
         })();
         locks.set(lockKey, { fingerprint, promise });
         try { return reply(200, await promise); } finally { locks.delete(lockKey); }
       }
       if (req.method === 'GET' && path === '/checkout/redirect') {
         const order = owned(url.searchParams.get('id'));
-        if (config.mode !== 'sandbox' || order.mode !== 'sandbox' || !order.checkoutFields || order.status === 'PAID') throw apiError(409, 'Checkout is not available for this order.');
+        if (order.mode !== config.mode || !order.checkoutFields || order.status === 'PAID') throw apiError(409, 'Checkout is not available for this order.');
         const fields = Object.entries(order.checkoutFields).map(([key, value]) => `<input type="hidden" name="${htmlEscape(key)}" value="${htmlEscape(value)}">`).join('');
-        return reply(200, `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Continue to Hamro Pay</title><link rel="stylesheet" href="/style.css"><body><main class="payment-panel"><p class="eyebrow">HAMRO PAY SANDBOX</p><h1>Continue to secure checkout</h1><p>Your order is NPR ${order.amount}. The next page is hosted by Hamro Pay.</p><form method="POST" action="${htmlEscape(config.gatewayUrl)}" enctype="application/x-www-form-urlencoded">${fields}<button class="primary" type="submit">Continue to Hamro Pay →</button></form><a href="/">Back to the store</a></main></body></html>`, 'text/html; charset=utf-8');
+        const label = config.mode === 'demo' ? 'LOCAL SIMULATION · NO MONEY MOVES' : 'HAMRO PAY SANDBOX';
+        const where = config.mode === 'demo' ? 'The next page is a local simulation of the checkout gateway.' : 'The next page is hosted by Hamro Pay.';
+        return reply(200, `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Continue to checkout</title><link rel="stylesheet" href="/style.css"><body><div class="sample-banner">${htmlEscape(label)}</div><main class="payment-panel"><p class="eyebrow">SECURE CHECKOUT</p><h1>Continue to secure checkout</h1><p>Your order is NPR ${htmlEscape(order.amount)}. ${htmlEscape(where)}</p><form method="POST" action="${htmlEscape(config.gatewayUrl)}" enctype="application/x-www-form-urlencoded">${fields}<button class="primary" type="submit">Continue to Hamro Pay →</button></form><a href="/">← Back to the store</a></main></body></html>`, 'text/html; charset=utf-8');
       }
-      if (req.method === 'POST' && path === '/api/demo/complete') {
-        protect(); const { id, result } = await parseBody(); const order = owned(id);
-        if (config.mode !== 'demo' || order.mode !== 'demo') throw apiError(404, 'Not found.');
-        if (!['COMPLETED', 'FAILED', 'PENDING'].includes(result)) throw apiError(400, 'Invalid demo result.');
-        const updated = await applyPayment(order, { merchantTransactionId: order.id, amount: order.amount, status: result });
-        return reply(200, publicOrder(updated));
+      if (mock && req.method === 'POST' && path.startsWith(MOCK_PREFIX)) {
+        const result = await mock.handle(path, await parseForm());
+        if (result.redirect) { res.writeHead(303, { ...headers, Location: result.redirect }); return res.end(); }
+        return reply(result.status, result.html, 'text/html; charset=utf-8');
       }
       if (req.method === 'POST' && path === '/api/order/verify') {
         protect(); const { id } = await parseBody(); const order = owned(id);
         if (order.mode !== config.mode) throw apiError(409, 'This order belongs to a different payment mode. Start a new order.');
-        if (config.mode === 'demo' || order.status === 'PAID') return reply(200, publicOrder(order));
-        let payment; try { payment = await getTransaction(order, config, fetcher); } catch { throw apiError(502, 'Payment verification is unavailable. Your order remains unconfirmed; try checking again.'); }
+        if (order.status === 'PAID') return reply(200, publicOrder(order));
+        let payment; try { payment = await getTransaction(order, config, send); } catch { throw apiError(502, 'Payment verification is unavailable. Your order remains unconfirmed; try checking again.'); }
         return reply(200, publicOrder(await applyPayment(order, payment)));
       }
       if (req.method === 'POST' && path === '/api/webhooks/hamropay') {
-        if (config.mode !== 'sandbox' || !config.webhookSecret) throw apiError(404, 'Webhook is not enabled.');
+        if (!config.webhookSecret) throw apiError(404, 'Webhook is not enabled.');
         const body = await parseBody();
         if (!verifyWebhook(body, req.headers.signature, config.webhookSecret) || body.merchantId !== config.merchantId) throw apiError(401, 'Invalid webhook.');
         const order = store.get(body.merchantTxnId);
-        if (!order || order.mode !== 'sandbox') throw apiError(404, 'Unknown order.');
+        if (!order || order.mode !== config.mode) throw apiError(404, 'Unknown order.');
         await applyPayment(order, { merchantTransactionId: body.merchantTxnId, amount: body.amount, status: body.status });
         return reply(200, { received: true });
       }
       if (req.method === 'GET') {
-        const staticFiles = { '/': ['index.html', '.html'], '/store.js': ['store.js', '.js'], '/style.css': ['style.css', '.css'], '/assets/everyday-tee.png': ['assets/everyday-tee.png', '.png'], '/demo/checkout': ['payment.html', '.html'], '/payment/return': ['payment.html', '.html'], '/payment.js': ['payment.js', '.js'] };
-        if (path === '/demo/checkout' && config.mode !== 'demo') throw apiError(404, 'Not found.');
+        const staticFiles = { '/': ['index.html', '.html'], '/store.js': ['store.js', '.js'], '/style.css': ['style.css', '.css'], '/assets/everyday-tee.png': ['assets/everyday-tee.png', '.png'], '/payment/return': ['payment.html', '.html'], '/payment/success': ['payment.html', '.html'], '/payment/failure': ['payment.html', '.html'], '/payment.js': ['payment.js', '.js'] };
         const file = staticFiles[path];
         if (file) return reply(200, await readFile(new URL(file[0], publicDir)), mime[file[1]]);
       }
@@ -134,4 +140,6 @@ export function createApp({ config, store, publicDir, fetcher = fetch }) {
       else res.end();
     }
   };
+  handle.close = () => mock?.close();
+  return handle;
 }

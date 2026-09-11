@@ -51,8 +51,8 @@ $('#checkout').addEventListener('click', async () => {
 });
 try {
   const response = await fetch('/api/store'); if (!response.ok) throw new Error('Store unavailable.'); state = await response.json();
-  $('#mode-label').textContent = state.mode === 'demo' ? 'SAMPLE STORE · DEMO MODE · NO REAL PAYMENTS OR PHYSICAL ORDERS' : 'SAMPLE STORE · HAMRO PAY SANDBOX · TEST PAYMENTS ONLY';
-  $('#bag-mode').textContent = state.mode === 'demo' ? 'Demo mode: try successful, pending, or failed payment. No money moves.' : 'You will continue to Hamro Pay’s test checkout.';
+  $('#mode-label').textContent = state.mode === 'demo' ? 'SAMPLE STORE · DEMO MODE · LOCAL GATEWAY · NO MONEY MOVES' : 'SAMPLE STORE · HAMRO PAY SANDBOX · TEST PAYMENTS ONLY';
+  $('#bag-mode').textContent = state.mode === 'demo' ? 'You will continue to a local checkout gateway that mimics Hamro Pay. No money moves.' : 'You will continue to Hamro Pay’s test checkout.';
   $('#price').textContent = money(state.product.price); $('#add-to-bag').disabled = false;
   restoreCart(); renderCart();
 } catch { message('Could not load the store. Make sure the Node.js server is running, then refresh.'); }
