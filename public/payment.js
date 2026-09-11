@@ -1,9 +1,9 @@
 const $ = selector => document.querySelector(selector);
-const query = new URLSearchParams(location.search);
 // Hamro Pay appends MerchantTxnId (capital M and T) to both redirect URLs.
-const id = query.get('MerchantTxnId') || query.get('id');
-const arrivedOnFailure = location.pathname === '/payment/failure';
+const id = new URLSearchParams(location.search).get('MerchantTxnId');
+const cameFromFailure = location.pathname === '/payment/failure';
 const SETTLING = new Set(['PENDING', 'PROCESSING']);
+const POLL_MS = 3000;
 const MAX_POLLS = 8;
 let state;
 let polls = 0;
@@ -12,62 +12,79 @@ let timer;
 async function api(path, body) {
   const response = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': state.csrf }, body: JSON.stringify(body) } : {});
   const result = await response.json();
-  if (!response.ok) throw new Error(result.error || 'Could not check payment.');
+  if (!response.ok) throw new Error(result.error || 'Could not check this payment.');
   return result;
 }
 
-const MESSAGES = {
-  PAID: ['Payment confirmed.', 'Your server verified this payment with Get Transaction. This is a sample order; no merchandise will be shipped.'],
-  FAILED: ['Payment wasn’t completed.', 'Your order remains unpaid. You can return to the store and start another checkout.'],
-  PENDING: ['Payment is pending.', 'Your order stays unpaid until the server confirms completion. This page keeps checking.'],
-  PROCESSING: ['Payment is processing.', 'The gateway has accepted the payment but has not settled it yet. This page keeps checking.'],
-  NOT_INITIATED: ['No payment was started.', 'The gateway has not recorded a payment for this order. You can return to the store and try again.'],
+const COPY = {
+  PAID: ['Paid', 'Payment confirmed', 'Your server checked this with Hamro Pay before confirming it. This is a sample order, so nothing ships.'],
+  FAILED: ['Not paid', 'This payment did not go through', 'Nothing was charged. You can go back to the store and try the checkout again.'],
+  PENDING: ['Pending', 'Payment is still pending', 'Hamro Pay has not settled this yet. This page keeps checking on its own.'],
+  PROCESSING: ['Processing', 'Payment is being processed', 'Hamro Pay accepted the payment and is settling it. This page keeps checking on its own.'],
+  NOT_INITIATED: ['Not started', 'No payment was started', 'Hamro Pay has no record of a payment for this order. Go back to the store to try again.'],
 };
+const money = amount => `NPR ${Number(amount).toLocaleString('en-US')}`;
 
 function render(order) {
-  $('#total-row').hidden = false;
-  $('#payment-amount').textContent = `NPR ${order.amount.toLocaleString('en-US')}`;
-  $('#order-id').textContent = `Order ${order.id}`;
-  $('#payment-status').textContent = order.status === 'PAID' ? 'Payment confirmed' : order.status.replaceAll('_', ' ');
-  $('#payment-status').classList.toggle('paid', order.status === 'PAID');
-  $('#mode-label').textContent = order.mode === 'demo' ? 'SAMPLE STORE · DEMO MODE · LOCAL GATEWAY · NO MONEY MOVES' : 'SAMPLE STORE · HAMRO PAY SANDBOX · TEST PAYMENTS ONLY';
-  $('#check-again').hidden = order.status === 'PAID';
-  const [title, description] = MESSAGES[order.status] || ['Payment is not confirmed.', 'Your server has not confirmed payment. Your order has not been marked paid.'];
-  $('#payment-title').textContent = title;
-  $('#payment-description').textContent = arrivedOnFailure && order.status !== 'PAID'
-    ? 'The gateway reported that this payment did not go through. Your order has not been marked paid.'
+  const [badge, title, description] = COPY[order.status] || ['Unconfirmed', 'This payment is not confirmed', 'Your server has not confirmed payment, so the order is not marked paid.'];
+  $('#panel').dataset.state = order.status;
+  $('#status-text').textContent = badge;
+  $('#title').textContent = title;
+  $('#description').textContent = cameFromFailure && order.status === 'NOT_INITIATED'
+    ? 'Hamro Pay sent you back without taking a payment. Nothing was charged.'
     : description;
+
+  const lines = $('#lines');
+  lines.replaceChildren(...order.lines.map(line => {
+    const item = document.createElement('li');
+    const label = document.createElement('span');
+    label.textContent = `${line.name}, size ${line.size}${line.quantity > 1 ? ` × ${line.quantity}` : ''}`;
+    const price = document.createElement('span');
+    price.className = 'amount';
+    price.textContent = money(line.price * line.quantity);
+    item.append(label, price);
+    return item;
+  }));
+  lines.hidden = !order.lines.length;
+  $('#total-row').hidden = false;
+  $('#amount').textContent = money(order.amount);
+  $('#order-id').textContent = `Order ${order.id}`;
+  $('#check-again').hidden = order.status === 'PAID';
   if (order.status === 'PAID') { try { sessionStorage.removeItem('hamro-cart'); } catch {} }
   return order.status;
 }
 
 async function verify() {
   clearTimeout(timer);
-  $('#payment-error').textContent = '';
+  $('#error').textContent = '';
   try {
     const status = render(await api('/api/order/verify', { id }));
-    // A gateway may settle moments after the customer returns, so keep checking briefly.
-    if (SETTLING.has(status) && polls++ < MAX_POLLS) timer = setTimeout(verify, 3000);
+    // Settlement can land a moment after the customer returns, so keep looking briefly.
+    if (SETTLING.has(status) && polls++ < MAX_POLLS) timer = setTimeout(verify, POLL_MS);
   } catch (error) {
-    $('#payment-error').textContent = error.message;
+    $('#error').textContent = error.message;
     $('#check-again').hidden = false;
   }
 }
 
 $('#check-again').addEventListener('click', async () => {
-  $('#check-again').disabled = true;
+  const button = $('#check-again');
+  button.disabled = true;
   polls = 0;
   await verify();
-  $('#check-again').disabled = false;
+  button.disabled = false;
 });
 
 try {
-  if (!id) throw new Error('Missing order ID. Start checkout from the store.');
+  if (!id) throw new Error('This link has no order reference. Start a checkout from the store.');
   state = await api('/api/store');
+  $('#env-banner').textContent = state.environment === 'sandbox' ? 'Sandbox — test payments only, no money moves' : 'Live payments';
+  $('#env-banner').classList.toggle('env-live', state.environment !== 'sandbox');
   render(await api(`/api/order?id=${encodeURIComponent(id)}`));
   await verify();
 } catch (error) {
-  $('#payment-title').textContent = 'We couldn’t find this order.';
-  $('#payment-description').textContent = error.message;
-  $('#payment-status').textContent = 'Not confirmed';
+  $('#panel').dataset.state = 'FAILED';
+  $('#status-text').textContent = 'Not found';
+  $('#title').textContent = 'We could not find this order';
+  $('#description').textContent = error.message;
 }

@@ -1,7 +1,8 @@
 const $ = selector => document.querySelector(selector);
 let state, cart = [], checkoutKey;
 const money = amount => `NPR ${amount.toLocaleString('en-US')}`;
-const message = text => { $('#store-message').textContent = text; };
+const message = (text, tone = 'error') => { const node = $('#store-message'); node.textContent = text; node.classList.toggle('is-ok', tone === 'ok'); node.classList.toggle('is-info', tone === 'info'); };
+const checkoutMessage = (text, tone = 'error') => { const node = $('#checkout-message'); node.textContent = text; node.classList.toggle('is-info', tone === 'info'); };
 function restoreCart() {
   try { const saved = JSON.parse(sessionStorage.getItem('hamro-cart') || '[]'); cart = saved.filter(item => item.sku === state.product.sku && state.product.sizes.includes(item.size) && Number.isInteger(item.quantity) && item.quantity > 0 && item.quantity <= 5); } catch { cart = []; }
 }
@@ -24,6 +25,13 @@ function renderCart() {
   $('#bag-summary').hidden = !cart.length;
   $('#bag-total').textContent = money(cart.reduce((sum, line) => sum + state.product.price * line.quantity, 0));
 }
+const thumbs = [...document.querySelectorAll('.thumb')];
+thumbs.forEach((thumb, index) => thumb.addEventListener('click', () => {
+  thumbs.forEach((other, i) => { other.classList.toggle('is-active', i === index); other.setAttribute('aria-pressed', String(i === index)); });
+  $('#gallery-main').src = thumb.dataset.full;
+  $('#gallery-main').alt = `The Everyday Tee, ${thumb.getAttribute('aria-label').toLowerCase()}`;
+  $('#gallery-index').textContent = `${String(index + 1).padStart(2, '0')} / ${String(thumbs.length).padStart(2, '0')}`;
+}));
 $('#open-bag').addEventListener('click', () => $('#bag-dialog').showModal());
 $('#close-bag').addEventListener('click', () => $('#bag-dialog').close());
 $('#bag-dialog').addEventListener('click', event => { if (event.target === $('#bag-dialog')) { const bounds = event.target.getBoundingClientRect(); if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) event.target.close(); } });
@@ -36,23 +44,25 @@ $('#product-form').addEventListener('submit', event => {
   const existing = cart.find(line => line.size === size);
   if ((existing?.quantity || 0) + quantity > 5) return message('This sample allows up to 5 shirts per size.');
   if (existing) existing.quantity += quantity; else cart.push({ sku: state.product.sku, size, quantity });
-  checkoutKey = undefined; message('Added to your bag.'); renderCart(); $('#bag-dialog').showModal();
+  checkoutKey = undefined; message('Added to your bag.', 'ok'); renderCart(); $('#bag-dialog').showModal();
 });
 $('#checkout').addEventListener('click', async () => {
   if (!cart.length || !state) return;
-  const button = $('#checkout'); button.disabled = true; $('#checkout-message').textContent = 'Preparing your checkout…';
+  const button = $('#checkout'); button.disabled = true; checkoutMessage('Preparing your checkout…', 'info');
   checkoutKey ||= crypto.randomUUID();
   try {
     const response = await fetch('/api/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': state.csrf, 'Idempotency-Key': checkoutKey }, body: JSON.stringify({ items: cart }) });
     const result = await response.json();
     if (!response.ok) { if (response.status === 409 || response.status === 502) checkoutKey = undefined; throw new Error(result.error || 'Could not start checkout.'); }
     window.location.assign(result.url);
-  } catch (error) { $('#checkout-message').textContent = error.message; button.disabled = false; }
+  } catch (error) { checkoutMessage(error.message); button.disabled = false; }
 });
 try {
   const response = await fetch('/api/store'); if (!response.ok) throw new Error('Store unavailable.'); state = await response.json();
-  $('#mode-label').textContent = state.mode === 'demo' ? 'SAMPLE STORE · DEMO MODE · LOCAL GATEWAY · NO MONEY MOVES' : 'SAMPLE STORE · HAMRO PAY SANDBOX · TEST PAYMENTS ONLY';
-  $('#bag-mode').textContent = state.mode === 'demo' ? 'You will continue to a local checkout gateway that mimics Hamro Pay. No money moves.' : 'You will continue to Hamro Pay’s test checkout.';
+  const sandbox = state.environment === 'sandbox';
+  $('#env-banner').textContent = sandbox ? 'Sandbox — test payments only, no money moves' : 'Live payments';
+  $('#env-banner').classList.toggle('env-live', !sandbox);
+  $('#bag-mode').textContent = sandbox ? 'Hamro Pay takes the payment on its own secure page. Sandbox payments move no money.' : 'Hamro Pay takes the payment on its own secure page.';
   $('#price').textContent = money(state.product.price); $('#add-to-bag').disabled = false;
   restoreCart(); renderCart();
 } catch { message('Could not load the store. Make sure the Node.js server is running, then refresh.'); }

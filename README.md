@@ -2,7 +2,7 @@
 
 A small Node.js T-shirt shop that shows how to create a Hamro Pay checkout session, redirect a customer, verify payment, and receive signed webhooks. It also includes optional **Payments for Platforms** commission configuration.
 
-**Try it without an account.** Demo mode runs the *complete* checkout flow against a gateway built into the sample: a signed Create Session call, a real form POST, a hosted payment page, a real redirect back with `MerchantTxnId`, server-side Get Transaction verification, and a signed webhook. Nothing is stubbed out except the counterparty, so the code you read is the code you would ship. No money moves, and the T-shirt is sample merchandise.
+It runs against the Hamro Pay sandbox: a signed Create Session call, a real form POST to the hosted checkout page, a real redirect back with `MerchantTxnId`, server-side Get Transaction verification, and a signed webhook. No money moves, and the T-shirt is sample merchandise.
 
 ![The Everyday Tee](public/assets/everyday-tee.png)
 
@@ -16,72 +16,62 @@ cd sample-store
 npm start
 ```
 
-Open **http://localhost:3000**. Choose a size, add a shirt to your bag, and check out. You will be taken to a payment page and redirected back, exactly as in production. Use these test credentials:
+This sample runs against the Hamro Pay **sandbox**, so it needs test credentials before it will start. Follow [Connect the Hamro Pay sandbox](#connect-the-hamro-pay-sandbox), then open **http://localhost:3000**, add a shirt to your bag, and check out. You are handed to Hamro Pay's hosted page and redirected back, exactly as in production.
 
-| Enter | Outcome |
-| --- | --- |
-| Number `9841414141`, T-PIN `0000`, OTP `000000` | Payment completes |
-| T-PIN `1111` | Payment is declined |
-| Number `9800000000` | Stays processing, then settles a few seconds later |
-| **Cancel payment** | Returns to the failure URL |
-
-The same numbers are what Hamro Pay documents for its real UAT sandbox, so the muscle memory carries over.
-
-There are **no third-party runtime packages**, no database to install, and no build step. The installer downloads release `v1.0.0`, creates a local `.env`, and leaves your existing directories untouched. It does not install Node, run sudo, change your shell, or start the server automatically.
-
-To inspect the installer or choose a directory:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/hamropatro/sample-store/main/install.sh -o install-hamropay.sh
-less install-hamropay.sh
-sh install-hamropay.sh --dir my-tshirt-store
-cd my-tshirt-store
-npm start
-```
-
-### Prefer Git?
-
-This also works in Windows PowerShell with Node.js and Git installed:
-
-```sh
-git clone https://github.com/hamropatro/sample-store.git
-cd sample-store
-npm run setup
-npm start
-```
-
-Use `npm run dev` to restart the server when you edit its source. Stop it with **Ctrl+C**.
+Sandbox test credentials: number `9841414141`, T-PIN `0000`, OTP `000000`.
 
 ## What you can learn
 
 | Step | Code | What happens |
 | --- | --- | --- |
 | Price an order | `src/catalog.mjs` | Reads trusted prices on the server; ignores browser-supplied amounts. |
-| Create a session | `src/hamropay.mjs` | Converts the total to paisa and signs the request with HMAC-SHA512, server side. |
-| Open checkout | `src/app.mjs` | Generates the gateway token and posts only the allowed form fields. |
-| Confirm payment | `src/app.mjs` | Checks the transaction ID, amount, and `COMPLETED` status. |
-| Receive a webhook | `src/hamropay.mjs` | Checks the signature with a constant-time comparison. |
+| Create a session | `src/hamropay/checkout.mjs` | Converts the total to paisa and signs the request with HMAC-SHA512, server side. |
+| Open checkout | `src/web/views.mjs` | Generates the gateway token and posts only the allowed form fields. |
+| Confirm payment | `src/services/payment-service.mjs` | Checks the transaction ID, amount, and `COMPLETED` status. |
+| Receive a webhook | `src/hamropay/webhook.mjs` | Checks the signature with a constant-time comparison. |
 | Share commission | `src/config.mjs` | Adds the platform merchant and its share to `clientCommissionConfig`. |
-| Stand in for the gateway | `src/mock-gateway.mjs` | Demo only. Implements the same protocol and rejects bad signatures, so demo and sandbox run one code path. |
 
-### Which mode redirects where
+### How the code is arranged
 
-| | `PAYMENT_MODE=demo` | `PAYMENT_MODE=sandbox` |
-| --- | --- | --- |
-| Needs credentials | No | Yes, four values |
-| Create Session goes to | Built-in gateway | `uat-payclient.hamropatro.com` |
-| Browser is redirected to | `/__hamropay/api/checkout` | **`uat-checkout-pay.hamropatro.com/api/checkout`** |
-| Code that runs | Identical | Identical |
+Each layer has one job, so you can read the part you need and ignore the rest.
 
-The hosted page will only open for a `session_id` that Hamro Pay issued, and issuing one requires your client ID, API key, and secret. That is why the sample ships a local gateway: so the repository runs before you have an account. It is not an alternative to the real thing, it is a stand-in for the counterparty.
+```text
+src/
+  hamropay/        the provider adapter - the ONLY place that talks to Hamro Pay
+    signature.mjs    HMAC-SHA512 signing, constant-time comparison
+    client.mjs       one signed POST: headers, timeouts, error translation
+    checkout.mjs     Create Session + the gateway token and form fields
+    transaction.mjs  Get Transaction + "may this payment settle the order?"
+    webhook.mjs      webhook signature verification
+  services/        payment decisions, independent of HTTP
+    checkout-service.mjs   prices -> order -> session, with idempotency
+    payment-service.mjs    the only code allowed to mark an order PAID
+  web/             the HTTP layer - no payment logic lives here
+    app.mjs          route table and error handling
+    context.mjs      session cookie, CSRF, rate limit, body parsing
+    routes/          thin handlers, one file per area
+    views.mjs        the server-rendered hand-off page
+  config.mjs       environment -> validated config (the only reader of process.env)
+  orders.mjs       durable order records
+  log.mjs          structured logging with credential redaction
+```
 
-### Demo mode is not a shortcut
+Two rules hold the design together:
 
-`PAYMENT_MODE=demo` swaps the counterparty, nothing else. The store still signs a real Create Session request, still generates the gateway token itself, still redirects the browser through a form POST, and still refuses to mark an order paid until Get Transaction says `COMPLETED`. The built-in gateway verifies every signature and rejects a tampered token, an expired session, or a replayed one. Switching to sandbox changes four environment values and no code.
+- **Only `payment-service.mjs` may set `PAID`,** and only from an answer Hamro Pay gave us — a Get Transaction response or a signature-verified webhook. No route can shortcut it.
+- **Only `config.mjs` reads `process.env`.** Everything else receives a validated config object, so there is no second place a credential can be read or defaulted.
 
-Demo credentials are derived from the per-install secret in `.data/`, so they are stable on your machine and never committed. The gateway lives under `/__hamropay/` and exists only when `PAYMENT_MODE=demo`.
+### Logging
 
-Your browser keeps only the cart and a session cookie. Orders and checkout tokens are stored locally in `.data/`, which is excluded from Git. Paid orders remain paid if a callback repeats or an older status arrives. Repeating the same checkout request reuses its order instead of creating another session.
+Logs are structured and leveled. `LOG_LEVEL` accepts `debug`, `info` (default), `warn`, `error`; `LOG_FORMAT=json` emits one JSON object per line for a log shipper.
+
+```text
+05:39:08 INFO  checkout.session_created orderId=HP7f98... sessionId=1c4674d0-... amount=1200
+05:39:09 INFO  payment.verified         orderId=HP7f98... reported=NOT_INITIATED
+05:39:09 INFO  payment.status_changed   orderId=HP7f98... source=verify from=PENDING to=NOT_INITIATED
+```
+
+Signatures, tokens, secrets, API keys, cookies and CSRF values are redacted by key name before formatting, so a careless caller cannot leak one into a log line.
 
 ## Connect the Hamro Pay sandbox
 
@@ -90,7 +80,6 @@ Your browser keeps only the cart and a session cookie. Orders and checkout token
 3. Stop the store and edit the `.env` created by setup:
 
 ```dotenv
-PAYMENT_MODE=sandbox
 HOST=127.0.0.1
 PORT=3000
 APP_URL=http://localhost:3000
@@ -139,6 +128,17 @@ Two details are easy to get wrong, and both are handled in `src/hamropay.mjs`:
 - **The gateway `token` is generated by your server, not returned by Create Session.** The session response contains only `sessionId` and `merchantId`. The token is a second signature, over different fields in a different order: `merchant_id,merchant_transaction_id,session_id,transaction_amount,client_id,client_api_key`.
 
 Sessions expire about 10 minutes after creation, and `merchantTxnId` must be 25 characters or fewer.
+
+### Where the live API differs from the reference
+
+Both of these were found by running against UAT, and both are handled in the adapter:
+
+| Reference says | UAT actually does | Handled in |
+| --- | --- | --- |
+| Get Transaction returns `merchantTransactionId` | returns **`merchantTxnId`** | `hamropay/transaction.mjs` accepts either name |
+| (not documented) | closes the TCP connection after each response without marking it closed, so a pooled keep-alive socket fails every second request with `UND_ERR_SOCKET` | `hamropay/client.mjs` sends `Connection: close` |
+
+Reading only the documented field name makes every verification look like an amount mismatch and answer `502`.
 
 ### Returning from the gateway
 
@@ -189,17 +189,17 @@ For a NPR 1,200 order, 3% is NPR 36 for the platform and NPR 1,164 for the selle
 ## Test and change the sample
 
 ```sh
-npm test        # full demo journey, signatures, webhooks, persistence
+npm test        # full payment journey, signatures, webhooks, persistence
 npm run check   # syntax check every source file
 npm run preflight  # sandbox only: prove real credentials work
 ```
 
-The tests walk the full demo journey (checkout → gateway form → payment → redirect → verification → webhook), plus server pricing, ownership and CSRF checks, duplicate requests, signature construction, declined and still-settling payments, tampered tokens, session replay, webhook verification, and persistence. Sandbox HTTP calls are mocked; these tests never charge money.
+The tests walk a full payment (checkout → hand-off form → gateway → redirect → verification → webhook) against a stand-in gateway in `test/fake-gateway.mjs` that speaks the documented protocol and rejects tampered tokens, expired sessions and replays, plus server pricing, ownership and CSRF checks, duplicate requests, signature construction, declined and still-settling payments, tampered tokens, session replay, webhook verification, and persistence. Sandbox HTTP calls are mocked; these tests never charge money.
 
 - Change products and prices in `src/catalog.mjs`.
 - Edit the storefront in `public/index.html`, `public/style.css`, and `public/store.js`.
 - Edit return-page behavior in `public/payment.js`.
-- Adjust demo payment outcomes and test credentials in `src/mock-gateway.mjs`.
+- Adjust the gateway stand-in used by the tests in `test/fake-gateway.mjs`.
 - Follow the payment routes in `src/app.mjs` and provider adapter in `src/hamropay.mjs`.
 
 ## Troubleshooting
@@ -213,7 +213,7 @@ The tests walk the full demo journey (checkout → gateway form → payment → 
 | Sandbox configuration error | Fill all four credential values in `.env`, then restart. Base URLs default to UAT. |
 | Amount rejected by the gateway | Hamro Pay accepts NPR 10 to NPR 50,000 per transaction. |
 | Session request timed out | The API may have created a session. Check the merchant portal before creating another test checkout; the sample does not automatically retry session creation. |
-| Want a fresh demo | Stop the server, delete the local `.data` directory, and restart. This deletes all local sample orders and regenerates the demo credentials. |
+| Want a fresh start | Stop the server, delete the local `.data` directory, and restart. This deletes all local sample orders. |
 | Payment page says the checkout could not be verified | The form was altered in transit, or the session expired after 10 minutes. Start a new checkout. |
 
 ## Scope

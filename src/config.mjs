@@ -6,6 +6,8 @@ const CREATE_SESSION_PATH = 'v1/checkout/sessionId';
 const GET_TRANSACTION_PATH = 'v1/checkout/transaction';
 const CHECKOUT_PROCEED_PATH = 'api/checkout';
 
+const REQUIRED = ['HAMRO_MERCHANT_ID', 'HAMRO_CLIENT_ID', 'HAMRO_API_KEY', 'HAMRO_CLIENT_SECRET'];
+
 function endpoint(baseUrl, path, key) {
   let base;
   try { base = new URL(baseUrl); } catch { throw new Error(`${key} must be a valid URL.`); }
@@ -36,40 +38,36 @@ function commissionConfig(env, merchantId) {
 }
 
 export function getConfig(env = process.env) {
-  const mode = env.PAYMENT_MODE || 'demo';
-  if (!['demo', 'sandbox'].includes(mode)) throw new Error('PAYMENT_MODE must be demo or sandbox. This sample does not enable live payments.');
   const port = Number(env.PORT || 3000);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT must be between 1 and 65535.');
   const appUrl = new URL(env.APP_URL || `http://localhost:${port}`);
   if (!['http:', 'https:'].includes(appUrl.protocol) || appUrl.username || appUrl.password || appUrl.pathname !== '/' || appUrl.search || appUrl.hash) throw new Error('APP_URL must be an HTTP(S) origin without a path.');
+  for (const key of REQUIRED) {
+    if (!env[key]?.trim()) throw new Error(`Set ${key} in .env. Get it from the Hamro Pay merchant portal.`);
+  }
 
-  const config = {
-    mode, port,
+  const apiBaseUrl = env.HAMRO_API_BASE_URL?.trim() || UAT_API_BASE_URL;
+  const gatewayBaseUrl = env.HAMRO_GATEWAY_BASE_URL?.trim() || UAT_GATEWAY_BASE_URL;
+  // Trimmed everywhere: portal copy-paste often carries a trailing newline, and an
+  // untrimmed value fails as a signature mismatch that is very hard to diagnose.
+  const merchantId = env.HAMRO_MERCHANT_ID.trim();
+  return {
+    port,
     host: env.HOST || '127.0.0.1',
     origin: appUrl.origin,
     secure: appUrl.protocol === 'https:',
-    // Trimmed everywhere: portal copy-paste often carries a trailing newline, and an
-    // untrimmed value fails as a signature mismatch that is very hard to diagnose.
-    webhookSecret: env.HAMRO_WEBHOOK_SECRET?.trim() || '',
-    merchantId: env.HAMRO_MERCHANT_ID?.trim() || '',
-  };
-  if (mode === 'demo') return config;
-
-  for (const key of ['HAMRO_MERCHANT_ID', 'HAMRO_CLIENT_ID', 'HAMRO_API_KEY', 'HAMRO_CLIENT_SECRET']) {
-    if (!env[key]?.trim()) throw new Error(`Set ${key} in .env before starting sandbox mode.`);
-  }
-  const apiBase = env.HAMRO_API_BASE_URL?.trim() || UAT_API_BASE_URL;
-  const gatewayBase = env.HAMRO_GATEWAY_BASE_URL?.trim() || UAT_GATEWAY_BASE_URL;
-  Object.assign(config, {
+    merchantId,
     clientId: env.HAMRO_CLIENT_ID.trim(),
     apiKey: env.HAMRO_API_KEY.trim(),
     clientSecret: env.HAMRO_CLIENT_SECRET.trim(),
-    apiBaseUrl: apiBase,
-    gatewayBaseUrl: gatewayBase,
-    sessionUrl: endpoint(apiBase, CREATE_SESSION_PATH, 'HAMRO_API_BASE_URL'),
-    transactionUrl: endpoint(apiBase, GET_TRANSACTION_PATH, 'HAMRO_API_BASE_URL'),
-    gatewayUrl: endpoint(gatewayBase, CHECKOUT_PROCEED_PATH, 'HAMRO_GATEWAY_BASE_URL'),
-    commission: commissionConfig(env, config.merchantId),
-  });
-  return config;
+    webhookSecret: env.HAMRO_WEBHOOK_SECRET?.trim() || '',
+    apiBaseUrl,
+    gatewayBaseUrl,
+    sessionUrl: endpoint(apiBaseUrl, CREATE_SESSION_PATH, 'HAMRO_API_BASE_URL'),
+    transactionUrl: endpoint(apiBaseUrl, GET_TRANSACTION_PATH, 'HAMRO_API_BASE_URL'),
+    gatewayUrl: endpoint(gatewayBaseUrl, CHECKOUT_PROCEED_PATH, 'HAMRO_GATEWAY_BASE_URL'),
+    // Anything other than the published UAT hosts is treated as real money for labelling.
+    environment: apiBaseUrl === UAT_API_BASE_URL && gatewayBaseUrl === UAT_GATEWAY_BASE_URL ? 'sandbox' : 'live',
+    commission: commissionConfig(env, merchantId),
+  };
 }

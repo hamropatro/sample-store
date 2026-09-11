@@ -1,1 +1,18 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Your payment — Hamro Goods</title><link rel="stylesheet" href="/style.css"><script type="module" src="/payment.js"></script></head><body><div class="sample-banner" id="mode-label">SAMPLE STORE · PAYMENT</div><header class="site-header"><a href="/" class="wordmark">hamro<span>goods.</span></a></header><main class="payment-panel"><p class="eyebrow" id="payment-eyebrow">YOUR ORDER</p><h1 id="payment-title">Checking your order…</h1><p id="payment-description">Please wait while the store loads your payment details.</p><span class="state-badge" id="payment-status">Loading</span><div class="payment-total" id="total-row" hidden><span>Order total</span><strong id="payment-amount"></strong></div><p class="order-id" id="order-id"></p><button class="secondary" id="check-again" hidden>Check payment status again</button><p class="status-message" id="payment-error" role="status" aria-live="polite"></p><a href="/">← Back to the store</a></main></body></html>
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#ffffff"><title>Your payment — Hamro Goods</title><link rel="stylesheet" href="/style.css"><script type="module" src="/payment.js"></script></head>
+<body>
+<div class="env-banner" id="env-banner">Checking environment…</div>
+<header class="site-header"><div class="header-inner"><a href="/" class="wordmark" aria-label="Hamro Goods, home">hamro<span>goods.</span></a><div class="header-actions"><a class="header-link" href="/">Back to the store</a></div></div></header>
+<main class="panel" id="panel" data-state="LOADING">
+  <p class="status"><span class="status-dot"></span><span id="status-text">Checking</span></p>
+  <h1 id="title">Checking your payment</h1>
+  <p class="lede" id="description">Confirming this order with Hamro Pay.</p>
+  <ul class="summary" id="lines" hidden></ul>
+  <div class="summary-total" id="total-row" hidden><span>Order total</span><strong class="amount" id="amount"></strong></div>
+  <div class="actions"><button class="secondary" id="check-again" hidden>Check again</button></div>
+  <p class="status-message" id="error" role="status" aria-live="polite"></p>
+  <p class="fine" id="order-id"></p>
+  <a class="back" href="/">Back to the store</a>
+</main>
+</body></html>

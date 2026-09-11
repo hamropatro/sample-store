@@ -20,7 +20,7 @@ test('installer handles spaces, preserves existing directories, and leaves secre
   const target = join(root, "my store's demo");
   const run = () => spawnSync('sh', [join(source, 'install.sh'), '--dir', target], { encoding: 'utf8', env: { ...process.env, PATH: bin + ':' + process.env.PATH, TEST_ARCHIVE: archive } });
   const result = run(); assert.equal(result.status, 0, result.stderr); assert.match(result.stdout, /npm start/);
-  assert.match(await readFile(join(target, '.env'), 'utf8'), /PAYMENT_MODE=demo/);
+  assert.match(await readFile(join(target, '.env'), 'utf8'), /HAMRO_CLIENT_SECRET=\s*$/m, 'the copied .env must ship with empty credentials');
   assert.equal((await stat(join(target, '.env'))).mode & 0o777, 0o600);
   await writeFile(join(target, 'keep.txt'), 'preserved');
   const again = run(); assert.equal(again.status, 1); assert.match(again.stderr, /already exists/);

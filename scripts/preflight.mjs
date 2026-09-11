@@ -5,14 +5,14 @@
 import { loadEnvFile } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { getConfig } from '../src/config.mjs';
-import { createSession, checkoutFields } from '../src/hamropay.mjs';
+import { createSession, checkoutFields } from '../src/hamropay/index.mjs';
 
 try { loadEnvFile(fileURLToPath(new URL('../.env', import.meta.url))); }
 catch (error) { if (error.code !== 'ENOENT') throw error; }
 
 try {
   const config = getConfig();
-  if (config.mode !== 'sandbox') throw new Error('Set PAYMENT_MODE=sandbox in .env first. Demo mode uses the built-in gateway and needs no credentials.');
+  console.log(`Environment  ${config.environment}`);
   console.log(`Merchant     ${config.merchantId}`);
   console.log(`Client       ${config.clientId}`);
   console.log(`Session      ${config.sessionUrl}`);

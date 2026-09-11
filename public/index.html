@@ -1,16 +1,221 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="A sample T-shirt store built with Node.js and Hamro Pay Checkout."><title>Hamro Goods — The Everyday Tee</title><link rel="stylesheet" href="/style.css"><script type="module" src="/store.js"></script></head>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="A sample T-shirt store built with Node.js and Hamro Pay Checkout.">
+<meta name="theme-color" content="#ffffff">
+<title>Hamro Goods — The Everyday Tee</title>
+<link rel="stylesheet" href="/style.css">
+<script type="module" src="/store.js"></script>
+</head>
 <body>
-<div class="sample-banner" id="mode-label">SAMPLE STORE · Loading payment mode…</div>
-<header class="site-header"><a href="/" class="wordmark">hamro<span>goods.</span></a><a class="header-link" href="https://github.com/hamropatro/sample-store">Get the code ↗</a><button class="bag-button" id="open-bag">Bag <span id="bag-count">0</span></button></header>
-<main class="product-layout">
- <section class="product-visual" aria-label="Product photograph"><span class="collection-label">THE EVERYDAY COLLECTION / 01</span><img src="/assets/everyday-tee.png" width="1254" height="1254" alt="Natural ivory T-shirt with a small red hamro. wordmark on the chest"><div class="image-caption"><span>Small details. Everyday comfort.</span><span>01 / 01</span></div></section>
- <section class="product-info"><p class="eyebrow">AN EVERYDAY ESSENTIAL</p><h1>The Everyday<br>Tee<span>.</span></h1><div class="price-line"><strong id="price">NPR 1,200</strong><span>Sample merchandise</span></div><p class="product-description">A simple tee for wherever the day takes you. Natural cotton, a relaxed silhouette, and a little hamro spirit.</p><div class="product-divider"></div><div class="color-row"><span>Color <strong>Natural</strong></span><span class="color-swatch" aria-label="Natural ivory"></span></div>
- <form id="product-form"><fieldset class="size-picker"><legend>Choose your size</legend><div class="size-options"><label><input type="radio" name="size" value="S" required><span>S</span></label><label><input type="radio" name="size" value="M"><span>M</span></label><label><input type="radio" name="size" value="L"><span>L</span></label><label><input type="radio" name="size" value="XL"><span>XL</span></label></div></fieldset><div class="quantity-row"><label for="quantity">Quantity</label><div class="stepper"><button type="button" id="minus" aria-label="Decrease quantity">−</button><input id="quantity" type="number" min="1" max="5" value="1" required><button type="button" id="plus" aria-label="Increase quantity">+</button></div></div><button class="primary add-button" type="submit" id="add-to-bag" disabled>Add to bag <span>↗</span></button></form><p id="store-message" class="status-message" role="status" aria-live="polite"></p>
- <div class="checkout-note"><span class="red-dot"></span><div><strong>Checkout with Hamro Pay</strong><p>Mobile banking · Internet banking · QR · connectIPS</p></div></div><details class="product-details"><summary>About this sample</summary><p>This is a developer example, not a real merchandise shop. Demo mode runs the complete checkout flow against a local gateway, so nothing is faked except the counterparty; sandbox mode uses your Hamro Pay test credentials. No money moves and no physical items are shipped.</p></details>
- </section>
+
+<div class="env-banner" id="env-banner">Checking environment…</div>
+
+<header class="site-header">
+  <div class="header-inner">
+    <a href="/" class="wordmark" aria-label="Hamro Goods, home">hamro<span>goods.</span></a>
+    <nav class="site-nav" aria-label="Primary">
+      <a href="#product">Shop</a>
+      <a href="#story">The collection</a>
+      <a href="#how">How it works</a>
+    </nav>
+    <div class="header-actions">
+      <a class="header-link" href="https://github.com/hamropatro/sample-store">Get the code <span aria-hidden="true">↗</span></a>
+      <button class="bag-button" id="open-bag" aria-haspopup="dialog">Bag <span id="bag-count">0</span></button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="product-layout" id="product" aria-label="The Everyday Tee">
+    <div class="gallery">
+      <figure class="product-visual">
+        <img id="gallery-main" src="/assets/everyday-tee.png" width="1254" height="1254" fetchpriority="high" alt="Natural ivory T-shirt with a small red hamro. wordmark on the chest">
+        <span class="collection-chip">The Everyday Collection / 01</span>
+        <figcaption class="gallery-caption"><span>Small details. Everyday comfort.</span><span id="gallery-index">01 / 04</span></figcaption>
+      </figure>
+      <div class="gallery-thumbs" role="group" aria-label="Product photos">
+        <button class="thumb is-active" type="button" data-full="/assets/everyday-tee.png" aria-pressed="true" aria-label="Front view">
+          <img src="/assets/everyday-tee.png" width="1254" height="1254" alt="">
+        </button>
+        <button class="thumb" type="button" data-full="/assets/everyday-tee-collar.png" aria-pressed="false" aria-label="Collar detail">
+          <img src="/assets/everyday-tee-collar.png" width="900" height="900" loading="lazy" alt="">
+        </button>
+        <button class="thumb" type="button" data-full="/assets/everyday-tee-logo.png" aria-pressed="false" aria-label="Chest wordmark detail">
+          <img src="/assets/everyday-tee-logo.png" width="900" height="900" loading="lazy" alt="">
+        </button>
+        <button class="thumb" type="button" data-full="/assets/everyday-tee-hem.png" aria-pressed="false" aria-label="Fabric and hem detail">
+          <img src="/assets/everyday-tee-hem.png" width="900" height="900" loading="lazy" alt="">
+        </button>
+      </div>
+    </div>
+
+    <section class="product-info">
+      <p class="eyebrow">An everyday essential</p>
+      <h1>The Everyday <br>Tee<span>.</span></h1>
+      <div class="price-line">
+        <strong id="price">NPR 1,200</strong>
+        <span class="chip">Sample merchandise</span>
+      </div>
+      <p class="product-description">A simple tee for wherever the day takes you. Natural cotton, a relaxed silhouette, and a little hamro spirit.</p>
+
+      <form id="product-form">
+        <div class="option-row">
+          <span class="option-label">Color <strong>Natural</strong></span>
+          <span class="color-swatch" aria-label="Natural ivory"></span>
+        </div>
+
+        <fieldset class="size-picker">
+          <legend>Choose your size <span class="legend-note">Unisex · Relaxed fit</span></legend>
+          <div class="size-options">
+            <label><input type="radio" name="size" value="S" required><span>S</span></label>
+            <label><input type="radio" name="size" value="M"><span>M</span></label>
+            <label><input type="radio" name="size" value="L"><span>L</span></label>
+            <label><input type="radio" name="size" value="XL"><span>XL</span></label>
+          </div>
+        </fieldset>
+
+        <div class="quantity-row">
+          <label for="quantity">Quantity</label>
+          <div class="stepper">
+            <button type="button" id="minus" aria-label="Decrease quantity">−</button>
+            <input id="quantity" type="number" min="1" max="5" value="1" required>
+            <button type="button" id="plus" aria-label="Increase quantity">+</button>
+          </div>
+        </div>
+
+        <button class="primary add-button" type="submit" id="add-to-bag" disabled>Add to bag <span aria-hidden="true">→</span></button>
+        <p id="store-message" class="status-message" role="status" aria-live="polite"></p>
+      </form>
+
+      <ul class="assurance">
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.2-2.9 7.7-7 9.5-4.1-1.8-7-5.3-7-9.5V6l7-3z"/><path d="M9 12l2 2 4-4.5"/></svg>
+          <div><strong>Server-verified payments</strong><span>Hamro Pay confirms the payment before this store marks an order paid.</span></div>
+        </li>
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2.5"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10"/></svg>
+          <div><strong>Hosted checkout</strong><span>Payment details are entered on Hamro Pay's own secure page, never here.</span></div>
+        </li>
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6"/><path d="M10 3v5.6L5.2 18a2 2 0 0 0 1.8 3h10a2 2 0 0 0 1.8-3L14 8.6V3"/><path d="M7.5 15h9"/></svg>
+          <div><strong>Sandbox ready</strong><span>Runs against Hamro Pay sandbox credentials. No money moves and nothing ships.</span></div>
+        </li>
+      </ul>
+
+      <details class="product-details">
+        <summary>Details &amp; care</summary>
+        <p>100% combed cotton in a natural ivory tone. Ribbed crew collar, dropped shoulder and a relaxed hem. Machine wash cold, tumble dry low. This is a fictional product page for a developer sample.</p>
+      </details>
+      <details class="product-details">
+        <summary>Shipping &amp; returns</summary>
+        <p>Nothing ships. The store is a code example, so orders are recorded and payments are verified, but no physical goods leave anywhere.</p>
+      </details>
+      <details class="product-details">
+        <summary>About this sample</summary>
+        <p>This is a developer example, not a real merchandise shop. It runs against your Hamro Pay sandbox credentials, so payments are real requests but move no money.</p>
+      </details>
+    </section>
+  </section>
+
+  <section class="story" id="story">
+    <div class="section-inner">
+      <header class="section-head">
+        <p class="eyebrow">The collection</p>
+        <h2>Small details,<br>everyday comfort.</h2>
+        <p class="section-lede">One product, photographed properly. The same care that goes into the tee is meant to show in the checkout around it.</p>
+      </header>
+      <div class="story-grid">
+        <figure>
+          <img src="/assets/everyday-tee-collar.png" width="900" height="900" loading="lazy" alt="Close-up of the ribbed crew collar">
+          <figcaption><strong>Ribbed collar</strong>Knitted to hold its shape, wash after wash.</figcaption>
+        </figure>
+        <figure>
+          <img src="/assets/everyday-tee-logo.png" width="900" height="900" loading="lazy" alt="Close-up of the red hamro. chest wordmark">
+          <figcaption><strong>The hamro. mark</strong>A small red wordmark, printed to stay quiet on the chest.</figcaption>
+        </figure>
+        <figure>
+          <img src="/assets/everyday-tee-hem.png" width="900" height="900" loading="lazy" alt="Close-up of the fabric and hem">
+          <figcaption><strong>Relaxed hem</strong>Natural cotton with an easy drape and an uncomplicated finish.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="how" id="how">
+    <div class="section-inner">
+      <header class="section-head">
+        <p class="eyebrow">For developers</p>
+        <h2>How the checkout works</h2>
+        <p class="section-lede">Three server-side steps between “Add to bag” and a paid order. The browser never sees a credential.</p>
+      </header>
+      <ol class="how-steps">
+        <li>
+          <span class="step-num">01</span>
+          <h3>A session is created server-side</h3>
+          <p>Your server signs the order line items and asks Hamro Pay for a checkout session. API keys and signing secrets stay on the server.</p>
+        </li>
+        <li>
+          <span class="step-num">02</span>
+          <h3>The customer pays on Hamro Pay</h3>
+          <p>The browser is handed to Hamro Pay's hosted page for mobile banking, internet banking, QR or connectIPS. Card and wallet details never touch this store.</p>
+        </li>
+        <li>
+          <span class="step-num">03</span>
+          <h3>Payment is verified before fulfilment</h3>
+          <p>When the customer returns — or a signed webhook arrives — your server asks Hamro Pay for the authoritative status and only then marks the order paid.</p>
+        </li>
+      </ol>
+      <a class="how-link" href="https://hamropay.com.np/checkout/developer/quickstart/">Read the integration guide <span aria-hidden="true">↗</span></a>
+    </div>
+  </section>
 </main>
-<footer class="site-footer"><span>Built with Node.js. Paid with Hamro Pay.</span><a href="https://hamropay.com.np/checkout/developer/quickstart/">Integration guide ↗</a></footer>
-<dialog id="bag-dialog" aria-labelledby="bag-title"><div class="bag-heading"><div><p class="eyebrow">GOOD CHOICES</p><h2 id="bag-title">Your bag</h2></div><button id="close-bag" class="icon-button" aria-label="Close bag">×</button></div><div id="bag-items"></div><div id="bag-summary"><div class="bag-total"><span>Total</span><strong id="bag-total"></strong></div><p class="small-note">No shipping or tax is added in this sample.</p><button id="checkout" class="primary">Checkout with Hamro Pay <span>→</span></button><p id="checkout-message" class="status-message" role="status" aria-live="polite"></p><p class="small-note" id="bag-mode"></p></div></dialog>
-</body></html>
+
+<footer class="site-footer">
+  <div class="section-inner">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a href="/" class="wordmark">hamro<span>goods.</span></a>
+        <p>A working Hamro Pay Checkout example, built with zero dependencies on Node.js.</p>
+      </div>
+      <nav class="footer-nav" aria-label="Footer">
+        <div>
+          <h3>Store</h3>
+          <a href="#product">The Everyday Tee</a>
+          <a href="#story">The collection</a>
+          <a href="#how">How it works</a>
+        </div>
+        <div>
+          <h3>Developers</h3>
+          <a href="https://hamropay.com.np/checkout/developer/quickstart/">Integration guide</a>
+          <a href="https://hamropay.com.np/checkout/developer/reference/">API reference</a>
+          <a href="https://github.com/hamropatro/sample-store">Get the code</a>
+        </div>
+      </nav>
+    </div>
+    <div class="footer-fine">
+      <span>Built with Node.js. Paid with Hamro Pay.</span>
+      <span>Sample store — nothing ships, no money moves.</span>
+    </div>
+  </div>
+</footer>
+
+<dialog id="bag-dialog" aria-labelledby="bag-title">
+  <div class="bag-heading">
+    <div><p class="eyebrow">Good choices</p><h2 id="bag-title">Your bag</h2></div>
+    <button id="close-bag" class="icon-button" aria-label="Close bag">×</button>
+  </div>
+  <div id="bag-items"></div>
+  <div id="bag-summary">
+    <div class="bag-total"><span>Total</span><strong id="bag-total"></strong></div>
+    <p class="small-note">No shipping or tax is added in this sample.</p>
+    <button id="checkout" class="primary">Checkout with Hamro Pay <span aria-hidden="true">→</span></button>
+    <p id="checkout-message" class="status-message" role="status" aria-live="polite"></p>
+    <p class="small-note" id="bag-mode"></p>
+  </div>
+</dialog>
+
+</body>
+</html>

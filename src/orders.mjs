@@ -1,8 +1,10 @@
+// Durable order records. A JSON file is enough for a sample; a real shop needs a
+// transactional database, since this store is single-process and rewrites the whole file.
 import { mkdir, readFile, writeFile, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 
-export async function openStore(directory) {
+export async function openOrderStore(directory) {
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const path = join(directory, 'orders.json');
   let orders;

@@ -1,19 +1,16 @@
-// A local stand-in for Hamro Pay, used by demo mode.
+// Test double for Hamro Pay.
 //
-// It is NOT a shortcut around the integration: it speaks the documented protocol and
-// rejects anything that does not. Demo mode therefore runs the same code path as
-// sandbox mode -- real signed Create Session call, real browser form POST carrying a
-// token, a hosted payment page, a real redirect back with MerchantTxnId, real Get
-// Transaction verification, and a real signed webhook. Only the counterparty changes.
-//
-// Every page it serves is labelled as a local simulation. It does not reproduce Hamro
-// Pay's branding and moves no money.
+// It speaks the documented protocol and rejects anything that does not: unsigned or
+// tampered Create Session calls, forged gateway tokens, expired and replayed sessions.
+// That lets the suite drive a whole payment -- signed session, form POST carrying a
+// token, hosted page, redirect back with MerchantTxnId, Get Transaction, signed
+// webhook -- against the real adapter. It is never imported by the application.
 
-import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
-import { sign, MIN_AMOUNT_PAISA, MAX_AMOUNT_PAISA } from './hamropay.mjs';
-import { htmlEscape } from './html.mjs';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
+import { sign, MIN_AMOUNT_PAISA, MAX_AMOUNT_PAISA } from '../src/hamropay/index.mjs';
+import { htmlEscape } from '../src/html.mjs';
 
-export const MOCK_PREFIX = '/__hamropay/';
+export const GATEWAY_PREFIX = '/gateway/';
 const SESSION_TTL_MS = 600000; // The real Create Session expires after about 10 minutes.
 const PENDING_SETTLE_MS = 8000;
 
@@ -21,31 +18,6 @@ const PENDING_SETTLE_MS = 8000;
 export const TEST_WALLET = Object.freeze({ phone: '9841414141', pin: '0000', otp: '000000' });
 const DECLINE_PIN = '1111';
 const PENDING_PHONE = '9800000000';
-
-const derive = (secret, label) => createHmac('sha256', secret).update(`hamropay-demo:${label}`, 'utf8').digest('hex');
-
-/** Stable per-install demo credentials, derived from the store's local secret. */
-export function demoCredentials(secret) {
-  return {
-    merchantId: `demo-merchant-${derive(secret, 'merchant').slice(0, 12)}`,
-    clientId: `demo-client-${derive(secret, 'client').slice(0, 12)}`,
-    apiKey: derive(secret, 'api-key').slice(0, 32),
-    clientSecret: derive(secret, 'client-secret'),
-    webhookSecret: derive(secret, 'webhook-secret'),
-  };
-}
-
-/** Point the adapter at the built-in gateway. Getters keep pace if `origin` changes. */
-export function useDemoGateway(config, secret) {
-  Object.assign(config, demoCredentials(secret));
-  const url = path => ({ get: () => `${config.origin}${MOCK_PREFIX}${path}`, enumerable: true, configurable: true });
-  Object.defineProperties(config, {
-    sessionUrl: url('v1/checkout/sessionId'),
-    transactionUrl: url('v1/checkout/transaction'),
-    gatewayUrl: url('api/checkout'),
-  });
-  return config;
-}
 
 const equals = (a, b) => {
   const left = Buffer.from(String(a), 'utf8');
@@ -60,12 +32,17 @@ function page(title, inner) {
 }
 const errorPage = (heading, detail) => ({ status: 400, html: page(heading, `<p class="eyebrow">CHECKOUT GATEWAY</p><h1>${htmlEscape(heading)}</h1><p>${htmlEscape(detail)}</p><a href="/">← Back to the store</a>`) });
 
-export function createMockGateway(config) {
+export function createFakeGateway(config) {
   const sessions = new Map();
   const transactions = new Map();
   const timers = new Set();
+  // Exposed so tests can assert on what the adapter actually sent.
+  const requests = [];
+  const sessionIds = [];
 
-  const record = id => transactions.get(id) || { merchantTransactionId: id, trackingId: '', status: 'NOT_INITIATED', amount: 0, remarks: '', message: 'TRANSACTION NOT INITIATED YET' };
+  // Matches production: the live API answers with `merchantTxnId`, although the
+  // published reference names this field `merchantTransactionId`.
+  const record = id => transactions.get(id) || { merchantTxnId: id, trackingId: '', status: 'NOT_INITIATED', amount: 0, remarks: '', message: 'TRANSACTION NOT INITIATED YET' };
 
   function authorize(options, expected) {
     if (!equals(options.headers['Client-Id'] || '', config.clientId)) return 'Unknown Client-Id.';
@@ -92,7 +69,7 @@ export function createMockGateway(config) {
 
   function settle(session, status, { delay = 0 } = {}) {
     transactions.set(session.merchantTxnId, {
-      merchantTransactionId: session.merchantTxnId,
+      merchantTxnId: session.merchantTxnId,
       trackingId: `demo-${session.sessionId.slice(0, 8)}`,
       status,
       amount: status === 'COMPLETED' ? session.amountRupees : 0,
@@ -122,6 +99,8 @@ export function createMockGateway(config) {
         if (typeof body[key] !== 'string' || !body[key]) return json(400, { message: `${key} is required.` });
       }
       const sessionId = randomUUID();
+      requests.push(body);
+      sessionIds.push(sessionId);
       sessions.set(sessionId, {
         sessionId, merchantTxnId: body.merchantTxnId,
         transactionAmount: String(body.transactionAmount),
@@ -169,7 +148,7 @@ export function createMockGateway(config) {
       ${lines ? `<ul class="gateway-lines">${lines}</ul>` : ''}
       <div class="payment-total"><span>Total</span><strong>${htmlEscape(money(session.amountRupees))}</strong></div>
       ${notice ? `<p class="status-message" role="alert">${htmlEscape(notice)}</p>` : ''}
-      <form method="POST" action="${MOCK_PREFIX}api/checkout/confirm" class="gateway-form">
+      <form method="POST" action="${GATEWAY_PREFIX}api/checkout/confirm" class="gateway-form">
         ${hidden}
         <label for="wallet-phone">Hamro Pay number</label>
         <input id="wallet-phone" name="phone_number" inputmode="numeric" autocomplete="off" value="${htmlEscape(TEST_WALLET.phone)}" required>
@@ -185,11 +164,11 @@ export function createMockGateway(config) {
 
   /** Browser-facing half: the hosted page and the redirect back to the merchant. */
   async function handle(path, form) {
-    if (path === `${MOCK_PREFIX}api/checkout`) {
+    if (path === `${GATEWAY_PREFIX}api/checkout`) {
       const { error, session } = openSession(form);
       return error || { status: 200, html: paymentPage(session, form) };
     }
-    if (path !== `${MOCK_PREFIX}api/checkout/confirm`) return errorPage('Not found.', 'This gateway endpoint does not exist.');
+    if (path !== `${GATEWAY_PREFIX}api/checkout/confirm`) return errorPage('Not found.', 'This gateway endpoint does not exist.');
 
     const { error, session } = openSession(form);
     if (error) return error;
@@ -215,7 +194,7 @@ export function createMockGateway(config) {
     session.used = true;
     if (phone === PENDING_PHONE) {
       // Authorised but not yet settled: Get Transaction reports PROCESSING for a while.
-      transactions.set(session.merchantTxnId, { merchantTransactionId: session.merchantTxnId, trackingId: `demo-${session.sessionId.slice(0, 8)}`, status: 'PROCESSING', amount: 0, remarks: session.remarks || '', message: 'TRANSACTION IS BEING PROCESSED' });
+      transactions.set(session.merchantTxnId, { merchantTxnId: session.merchantTxnId, trackingId: `demo-${session.sessionId.slice(0, 8)}`, status: 'PROCESSING', amount: 0, remarks: session.remarks || '', message: 'TRANSACTION IS BEING PROCESSED' });
       const timer = setTimeout(() => { timers.delete(timer); settle(session, 'COMPLETED'); }, PENDING_SETTLE_MS);
       timer.unref?.();
       timers.add(timer);
@@ -226,5 +205,5 @@ export function createMockGateway(config) {
   }
 
   const close = () => { for (const timer of timers) clearTimeout(timer); timers.clear(); };
-  return { fetcher, handle, close };
+  return { fetcher, handle, close, sessions: requests, sessionIds };
 }
