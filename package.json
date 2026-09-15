@@ -12,7 +12,8 @@
     "dev": "node --watch src/server.mjs",
     "setup": "node scripts/setup.mjs",
     "test": "node --test",
-    "check": "node --check src/server.mjs && node --check src/app.mjs && node --check public/store.js && node --check public/payment.js",
-    "build": "npm run check"
+    "check": "for f in src/*.mjs src/hamropay/*.mjs src/services/*.mjs src/web/*.mjs src/web/routes/*.mjs scripts/*.mjs public/*.js; do node --check \"$f\" || exit 1; done && echo OK",
+    "build": "npm run check",
+    "preflight": "node scripts/preflight.mjs"
   }
 }

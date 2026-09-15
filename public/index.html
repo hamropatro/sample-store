@@ -1,16 +1,458 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="A sample T-shirt store built with Node.js and Hamro Pay Checkout."><title>Hamro Goods — The Everyday Tee</title><link rel="stylesheet" href="/style.css"><script type="module" src="/store.js"></script></head>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="A sample T-shirt store built with Node.js and Hamro Pay Checkout.">
+<meta name="theme-color" content="#ffffff">
+<title>Hamro Goods — The Everyday Tee</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+<script type="module" src="/store.js"></script>
+</head>
 <body>
-<div class="sample-banner" id="mode-label">SAMPLE STORE · Loading payment mode…</div>
-<header class="site-header"><a href="/" class="wordmark">hamro<span>goods.</span></a><a class="header-link" href="https://github.com/hamropatro/sample-store">Get the code ↗</a><button class="bag-button" id="open-bag">Bag <span id="bag-count">0</span></button></header>
-<main class="product-layout">
- <section class="product-visual" aria-label="Product photograph"><span class="collection-label">THE EVERYDAY COLLECTION / 01</span><img src="/assets/everyday-tee.png" width="1254" height="1254" alt="Natural ivory T-shirt with a small red hamro. wordmark on the chest"><div class="image-caption"><span>Small details. Everyday comfort.</span><span>01 / 01</span></div></section>
- <section class="product-info"><p class="eyebrow">AN EVERYDAY ESSENTIAL</p><h1>The Everyday<br>Tee<span>.</span></h1><div class="price-line"><strong id="price">NPR 1,200</strong><span>Sample merchandise</span></div><p class="product-description">A simple tee for wherever the day takes you. Natural cotton, a relaxed silhouette, and a little hamro spirit.</p><div class="product-divider"></div><div class="color-row"><span>Color <strong>Natural</strong></span><span class="color-swatch" aria-label="Natural ivory"></span></div>
- <form id="product-form"><fieldset class="size-picker"><legend>Choose your size</legend><div class="size-options"><label><input type="radio" name="size" value="S" required><span>S</span></label><label><input type="radio" name="size" value="M"><span>M</span></label><label><input type="radio" name="size" value="L"><span>L</span></label><label><input type="radio" name="size" value="XL"><span>XL</span></label></div></fieldset><div class="quantity-row"><label for="quantity">Quantity</label><div class="stepper"><button type="button" id="minus" aria-label="Decrease quantity">−</button><input id="quantity" type="number" min="1" max="5" value="1" required><button type="button" id="plus" aria-label="Increase quantity">+</button></div></div><button class="primary add-button" type="submit" id="add-to-bag" disabled>Add to bag <span>↗</span></button></form><p id="store-message" class="status-message" role="status" aria-live="polite"></p>
- <div class="checkout-note"><span class="red-dot"></span><div><strong>Checkout with Hamro Pay</strong><p>Mobile banking · Internet banking · QR · connectIPS</p></div></div><details class="product-details"><summary>About this sample</summary><p>This is a developer example, not a real merchandise shop. Demo mode simulates payments; sandbox mode uses your Hamro Pay test credentials. No physical items are shipped.</p></details>
- </section>
+
+<!-- Top Announcement Banner -->
+<div class="env-banner" id="env-banner">
+  <div class="banner-inner">
+    <span>Free shipping on orders over NPR 3,000</span>
+    <span class="banner-bullet">·</span>
+    <span>Easy returns within 7 days</span>
+  </div>
+</div>
+
+<!-- Main Site Header -->
+<header class="site-header">
+  <div class="header-inner">
+    <a href="/" class="wordmark" aria-label="Hamro Goods, home">hamro<span class="wordmark-highlight">goods.</span></a>
+    
+    <nav class="site-nav" aria-label="Primary">
+      <a href="#product" class="nav-link is-active">Shop</a>
+      <a href="#story" class="nav-link">The collection</a>
+      <a href="#how" class="nav-link">How it works</a>
+    </nav>
+    
+    <div class="header-actions">
+      <div class="header-search">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="search" placeholder="Search products..." aria-label="Search products" class="search-input">
+      </div>
+      
+      <button class="bag-button-icon" id="open-bag" aria-haspopup="dialog" aria-label="View shopping bag">
+        <svg class="bag-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <path d="M16 10a4 4 0 0 1-8 0"/>
+        </svg>
+        <span class="bag-count-badge" id="bag-count">0</span>
+      </button>
+
+      <button class="avatar-button" type="button" aria-label="User profile">
+        <svg class="avatar-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="8" r="4"/>
+          <path d="M20 21a8 8 0 0 0-16 0"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Breadcrumb Navigation -->
+<nav class="breadcrumb-container" aria-label="Breadcrumb">
+  <div class="section-inner">
+    <ol class="breadcrumb-list">
+      <li><a href="/">Home</a></li>
+      <li class="separator">&gt;</li>
+      <li><a href="#product">Clothing</a></li>
+      <li class="separator">&gt;</li>
+      <li><a href="#product">T-Shirts</a></li>
+      <li class="separator">&gt;</li>
+      <li class="current" aria-current="page">The Everyday Tee</li>
+    </ol>
+  </div>
+</nav>
+
+<main>
+  <!-- Product Section -->
+  <section class="product-layout" id="product" aria-label="The Everyday Tee">
+    
+    <!-- Gallery Column -->
+    <div class="gallery">
+      <div class="product-visual">
+        <span class="collection-chip">Everyday Essential</span>
+        
+        <button type="button" class="wishlist-float-btn" id="gallery-wishlist" aria-label="Save to wishlist">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        </button>
+
+        <button type="button" class="carousel-arrow prev" id="carousel-prev" aria-label="Previous photo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <button type="button" class="carousel-arrow next" id="carousel-next" aria-label="Next photo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+
+        <img id="gallery-main" src="/assets/everyday-tee.png" width="1254" height="1254" fetchpriority="high" alt="Natural ivory T-shirt with red hamro wordmark">
+      </div>
+
+      <div class="gallery-thumbs-wrap">
+        <div class="gallery-thumbs" role="group" aria-label="Product photos">
+          <button class="thumb is-active" type="button" data-full="/assets/everyday-tee.png" aria-pressed="true" aria-label="Front view">
+            <img src="/assets/everyday-tee.png" width="180" height="180" alt="Front view">
+          </button>
+          <button class="thumb" type="button" data-full="/assets/everyday-tee-collar.png" aria-pressed="false" aria-label="Collar detail">
+            <img src="/assets/everyday-tee-collar.png" width="180" height="180" loading="lazy" alt="Collar detail">
+          </button>
+          <button class="thumb" type="button" data-full="/assets/everyday-tee-logo.png" aria-pressed="false" aria-label="Chest wordmark detail">
+            <img src="/assets/everyday-tee-logo.png" width="180" height="180" loading="lazy" alt="Logo detail">
+          </button>
+          <button class="thumb" type="button" data-full="/assets/everyday-tee-fabric.png" aria-pressed="false" aria-label="Natural cotton fabric texture">
+            <img src="/assets/everyday-tee-fabric.png" width="180" height="180" loading="lazy" alt="Natural cotton fabric">
+          </button>
+          <button class="thumb" type="button" data-full="/assets/everyday-tee-hem.png" aria-pressed="false" aria-label="Fabric and hem detail">
+            <img src="/assets/everyday-tee-hem.png" width="180" height="180" loading="lazy" alt="Hem detail">
+          </button>
+        </div>
+        <button type="button" class="thumb-next-btn" id="thumb-next" aria-label="Next photo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Product Info Column -->
+    <section class="product-info">
+      <p class="category-tag">Hamro Essentials</p>
+      <h1 class="product-title">The Everyday Tee</h1>
+      
+      <div class="price-line">
+        <strong id="price" class="price-val">NPR 1,200</strong>
+        <span class="stock-pill">
+          <span class="stock-dot"></span> In stock
+        </span>
+      </div>
+      
+      <p class="product-description">A simple tee for wherever the day takes you. 100% natural combed cotton with a comfortable, relaxed silhouette and durable stitch.</p>
+
+      <form id="product-form" class="product-form">
+        <div class="option-row">
+          <div class="option-label-group">
+            <span class="option-label">Color:</span>
+            <strong class="option-value" id="selected-color-name">Natural</strong>
+          </div>
+          <div class="color-swatches" role="radiogroup" aria-label="Select color">
+            <button type="button" class="swatch is-active" data-color="Natural" aria-checked="true" role="radio" aria-label="Natural ivory color">
+              <span class="swatch-inner swatch-natural"></span>
+            </button>
+            <button type="button" class="swatch" data-color="Heather Charcoal" aria-checked="false" role="radio" aria-label="Heather charcoal color">
+              <span class="swatch-inner swatch-charcoal"></span>
+            </button>
+          </div>
+        </div>
+
+        <fieldset class="size-picker">
+          <div class="size-header">
+            <legend class="option-label">Select Size</legend>
+            <button type="button" class="size-guide-link" id="open-size-guide">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              <span>Size guide</span>
+            </button>
+          </div>
+          <div class="size-options">
+            <label><input type="radio" name="size" value="S" checked required><span>S</span></label>
+            <label><input type="radio" name="size" value="M"><span>M</span></label>
+            <label><input type="radio" name="size" value="L"><span>L</span></label>
+            <label><input type="radio" name="size" value="XL"><span>XL</span></label>
+          </div>
+        </fieldset>
+
+        <div class="quantity-row">
+          <label for="quantity" class="option-label">Quantity</label>
+          <div class="stepper">
+            <button type="button" id="minus" aria-label="Decrease quantity">−</button>
+            <input id="quantity" type="number" min="1" max="5" value="1" required readonly>
+            <button type="button" id="plus" aria-label="Increase quantity">+</button>
+          </div>
+        </div>
+
+        <div class="cta-row">
+          <button class="primary add-button" type="submit" id="add-to-bag">
+            <svg class="btn-bag-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+            <span>Add to Bag</span>
+          </button>
+          <button type="button" class="wishlist-action-btn" id="wishlist-btn" aria-label="Save to favorites">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          </button>
+        </div>
+        
+        <p id="store-message" class="status-message" role="status" aria-live="polite"></p>
+      </form>
+
+      <!-- Value Props Box -->
+      <div class="value-props-box">
+        <div class="value-prop-item">
+          <svg class="value-prop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+          <div>
+            <strong>Free delivery</strong>
+            <span>Orders over NPR 3,000 anywhere in Nepal.</span>
+          </div>
+        </div>
+        <div class="value-prop-item">
+          <svg class="value-prop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+          <div>
+            <strong>7-day returns</strong>
+            <span>Hassle-free return policy on unworn items.</span>
+          </div>
+        </div>
+        <div class="value-prop-item">
+          <svg class="value-prop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>
+          <div>
+            <strong>100% natural cotton</strong>
+            <span>Lightweight, breathable combed weave.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Accordion Details -->
+      <div class="accordions-wrap">
+        <details class="product-details">
+          <summary><span>Product details &amp; care</span></summary>
+          <p>100% combed ring-spun cotton in natural unbleached ivory tone. Ribbed crew collar, dropped shoulders, and relaxed double-needle hem. Machine wash cold inside out, tumble dry low.</p>
+        </details>
+        <details class="product-details">
+          <summary><span>Shipping &amp; delivery</span></summary>
+          <p>Complimentary delivery across major cities in Nepal on orders over NPR 3,000. Standard delivery typically takes 2-4 business days.</p>
+        </details>
+        <details class="product-details">
+          <summary><span>About this demo store</span></summary>
+          <p>This is a working developer demonstration of Hamro Pay Checkout with zero external dependencies. Payments run in sandbox mode where no actual money is moved.</p>
+        </details>
+      </div>
+    </section>
+  </section>
+
+  <!-- The Collection Story Section -->
+  <section class="story" id="story">
+    <div class="section-inner">
+      <div class="story-header-flex">
+        <div class="story-left">
+          <span class="section-tag">Craftsmanship</span>
+          <h2 class="story-title">Small details, everyday comfort</h2>
+          <p class="section-lede">Our products, photographed properly. The same care that goes into the design is meant to be checked around it.</p>
+        </div>
+        <div class="story-badges">
+          <div class="story-badge-item">
+            <svg class="badge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>
+            <strong>100% natural cotton</strong>
+            <p>Soft, breathable and made to last.</p>
+          </div>
+          <div class="story-badge-item">
+            <svg class="badge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg>
+            <strong>Relaxed fit</strong>
+            <p>Comfortable for everyday wear.</p>
+          </div>
+          <div class="story-badge-item">
+            <svg class="badge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+            <strong>Timeless design</strong>
+            <p>Simple, clean, always relevant.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="story-grid-4">
+        <figure class="story-card">
+          <div class="story-img-box">
+            <img src="/assets/everyday-tee-collar.png" width="600" height="600" loading="lazy" alt="Close-up of the ribbed crew collar">
+          </div>
+          <figcaption>
+            <strong>Ribbed collar</strong>
+            <span>Keeps its shape, wash after wash.</span>
+          </figcaption>
+        </figure>
+        <figure class="story-card">
+          <div class="story-img-box">
+            <img src="/assets/everyday-tee-logo.png" width="600" height="600" loading="lazy" alt="Close-up of the red hamro. chest wordmark">
+          </div>
+          <figcaption>
+            <strong>The hamro. mark</strong>
+            <span>A small mark, a reminder, proudly ours.</span>
+          </figcaption>
+        </figure>
+        <figure class="story-card">
+          <div class="story-img-box">
+            <img src="/assets/everyday-tee-hem.png" width="900" height="900" loading="lazy" alt="Close-up of the relaxed hem">
+          </div>
+          <figcaption>
+            <strong>Relaxed hem</strong>
+            <span>Made for comfort, not constraints.</span>
+          </figcaption>
+        </figure>
+        <figure class="story-card">
+          <div class="story-img-box">
+            <img src="/assets/everyday-tee-fabric.png" width="600" height="600" loading="lazy" alt="Close-up of the natural cotton fabric">
+          </div>
+          <figcaption>
+            <strong>Natural cotton</strong>
+            <span>Lightweight, breathable, all day comfort.</span>
+          </figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- How Checkout Works Section -->
+  <section class="how" id="how">
+    <div class="section-inner">
+      <header class="section-head">
+        <span class="section-tag-dark">Developer Integration</span>
+        <h2 class="how-headline">How the checkout works</h2>
+        <p class="section-lede how-lede">Three simple steps. From cart to your door. Fast, secure, and hassle free.</p>
+      </header>
+
+      <ol class="how-steps-row">
+        <li class="how-step-col">
+          <div class="step-num-bubble">01</div>
+          <h3>A session is created server-side</h3>
+          <p>Your cart and order details are securely handled on our backend, with real-time inventory checks.</p>
+        </li>
+        <li class="how-step-col">
+          <div class="step-num-bubble">02</div>
+          <h3>The customer pays on Hamro Pay</h3>
+          <p>We use Hamro Pay, our secure payment partner, for a smooth checkout experience with multiple payment options.</p>
+        </li>
+        <li class="how-step-col">
+          <div class="step-num-bubble">03</div>
+          <h3>Payment is verified before fulfillment</h3>
+          <p>Once your payment is verified, we process your order and get it ready for shipping.</p>
+        </li>
+      </ol>
+
+      <div class="how-action-row">
+        <a class="how-link" href="https://hamropay.com.np/checkout/developer/quickstart/">Read the integration guide <span aria-hidden="true">→</span></a>
+      </div>
+    </div>
+  </section>
 </main>
-<footer class="site-footer"><span>Built with Node.js. Paid with Hamro Pay.</span><a href="https://hamro-pay-developers.shankaruprety.chatgpt.site/docs/quickstart">Integration guide ↗</a></footer>
-<dialog id="bag-dialog" aria-labelledby="bag-title"><div class="bag-heading"><div><p class="eyebrow">GOOD CHOICES</p><h2 id="bag-title">Your bag</h2></div><button id="close-bag" class="icon-button" aria-label="Close bag">×</button></div><div id="bag-items"></div><div id="bag-summary"><div class="bag-total"><span>Total</span><strong id="bag-total"></strong></div><p class="small-note">No shipping or tax is added in this sample.</p><button id="checkout" class="primary">Checkout with Hamro Pay <span>→</span></button><p id="checkout-message" class="status-message" role="status" aria-live="polite"></p><p class="small-note" id="bag-mode"></p></div></dialog>
-</body></html>
+
+<!-- Site Footer -->
+<footer class="site-footer">
+  <div class="section-inner">
+    <div class="footer-top-grid">
+      <div class="footer-brand">
+        <a href="/" class="wordmark footer-logo" aria-label="Hamro Goods, home">hamro<span class="wordmark-highlight">goods.</span></a>
+        <p class="footer-tagline">A clothing brand for everyday people.<br>Simple. Comfortable. Hamro.</p>
+        <div class="social-icons" aria-label="Social media links">
+          <a href="#" class="social-icon" aria-label="Instagram">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+          </a>
+          <a href="#" class="social-icon" aria-label="X (Twitter)">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+          </a>
+          <a href="#" class="social-icon" aria-label="Facebook">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+          </a>
+          <a href="#" class="social-icon" aria-label="YouTube">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+          </a>
+        </div>
+      </div>
+
+      <div class="footer-nav-column">
+        <h3>Shop</h3>
+        <a href="#product">All Products</a>
+        <a href="#product">T-Shirts</a>
+        <a href="#story">The Collection</a>
+        <a href="#product">Sale</a>
+      </div>
+
+      <div class="footer-nav-column">
+        <h3>Support</h3>
+        <a href="#how">Shipping &amp; Returns</a>
+        <button type="button" class="footer-text-btn" id="footer-size-guide">Size Guide</button>
+        <a href="#how">FAQs</a>
+        <a href="mailto:support@hamropatro.com">Contact</a>
+      </div>
+
+      <div class="footer-newsletter">
+        <h3>Newsletter</h3>
+        <p>Get updates on new drops and exclusive offers.</p>
+        <form class="newsletter-form" id="newsletter-form">
+          <input type="email" placeholder="Your email address" aria-label="Your email address" required>
+          <button type="submit" aria-label="Subscribe to newsletter">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <div class="footer-fine">
+      <span>© 2025 Hamro Goods. All rights reserved.</span>
+      <div class="footer-legal-links">
+        <a href="#">Privacy Policy</a>
+        <a href="#">Terms of Service</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<!-- Bag Dialog -->
+<dialog id="bag-dialog" aria-labelledby="bag-title">
+  <div class="bag-heading">
+    <div>
+      <p class="category-tag">Your Selection</p>
+      <h2 id="bag-title">Shopping Bag</h2>
+    </div>
+    <button id="close-bag" class="icon-button" aria-label="Close bag">×</button>
+  </div>
+  <div id="bag-items"></div>
+  <div id="bag-summary">
+    <div class="bag-total">
+      <span>Total</span>
+      <strong id="bag-total"></strong>
+    </div>
+    <p class="small-note">No shipping or tax is added in this sample.</p>
+    <button id="checkout" class="primary checkout-button">
+      <span>Checkout with Hamro Pay</span>
+      <span aria-hidden="true">→</span>
+    </button>
+    <p id="checkout-message" class="status-message" role="status" aria-live="polite"></p>
+    <p class="small-note" id="bag-mode"></p>
+  </div>
+</dialog>
+
+<!-- Size Guide Dialog -->
+<dialog id="size-guide-dialog" class="size-guide-modal" aria-labelledby="size-guide-title">
+  <div class="modal-head">
+    <div>
+      <p class="category-tag">Fit &amp; Sizing</p>
+      <h2 id="size-guide-title">Size Guide</h2>
+    </div>
+    <button id="close-size-guide" class="icon-button" aria-label="Close size guide">×</button>
+  </div>
+  <div class="modal-content">
+    <p class="size-intro">Our tees are unisex with a relaxed silhouette. If you prefer a tailored fit, we recommend sizing down; for an oversized aesthetic, take your normal size or size up.</p>
+    <div class="table-responsive">
+      <table class="size-table">
+        <thead>
+          <tr>
+            <th>Size</th>
+            <th>Chest (in)</th>
+            <th>Length (in)</th>
+            <th>Shoulder (in)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>S</strong></td><td>38 - 40"</td><td>27.5"</td><td>18.5"</td></tr>
+          <tr><td><strong>M</strong></td><td>41 - 43"</td><td>28.5"</td><td>19.5"</td></tr>
+          <tr><td><strong>L</strong></td><td>44 - 46"</td><td>29.5"</td><td>20.5"</td></tr>
+          <tr><td><strong>XL</strong></td><td>47 - 49"</td><td>30.5"</td><td>21.5"</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="size-note">Measurements are taken with the garment laid flat. Due to natural cotton weave, subtle variations up to 0.5" may occur.</p>
+  </div>
+</dialog>
+
+</body>
+</html>
